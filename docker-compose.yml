@@ -1,0 +1,54 @@
+services:
+  # Mismo motor que en Azure: apache/age trae PostgreSQL con AGE precargado.
+  # pgvector se instala con la extension `vector`, incluida en la imagen.
+  postgres:
+    image: apache/age:PG16_latest
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas
+      POSTGRES_DB: atlas
+    command: >
+      postgres -c shared_preload_libraries=age
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./apps/api
+    environment:
+      PG_HOST: postgres
+      PG_PORT: 5432
+      PG_DB: atlas
+      PG_USER: atlas
+      PG_PASSWORD: atlas
+      PG_AUTH: password
+      PG_SSLMODE: prefer
+      GRAFO: atlas
+      EMBED_DIM: 256
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./apps/web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
